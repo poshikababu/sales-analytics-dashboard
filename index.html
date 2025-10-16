@@ -1,0 +1,337 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Analytics Dashboard</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --chart-height: 200px;
+        }
+        .analytics-card {
+            transition: transform 0.3s;
+        }
+        .analytics-card:hover {
+            transform: translateY(-5px);
+        }
+        .chart-container {
+            height: var(--chart-height);
+            display: flex;
+            align-items: flex-end;
+            gap: 20px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .chart-bar {
+            flex: 1;
+            background-color: #0d6efd;
+            border-radius: 4px 4px 0 0;
+            position: relative;
+            min-width: 40px;
+            transition: height 0.5s;
+        }
+        .chart-bar-label {
+            position: absolute;
+            bottom: -25px;
+            width: 100%;
+            text-align: center;
+            font-size: 0.8rem;
+        }
+        .chart-bar-value {
+            position: absolute;
+            top: -25px;
+            width: 100%;
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        @media (max-width: 768px) {
+            .chart-container {
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container py-4">
+        <header class="mb-4">
+            <h1 class="display-4 text-center">Sales Analytics Dashboard</h1>
+        </header>
+
+        <!-- Analytics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="card shadow analytics-card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Total Sales</h5>
+                        <p class="display-6 text-primary" id="totalSales">$0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card shadow analytics-card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Avg. per Product</h5>
+                        <p class="display-6 text-success" id="avgSales">$0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card shadow analytics-card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Regions</h5>
+                        <p class="display-6 text-info" id="regionCount">0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart Section -->
+        <div class="card shadow mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Sales by Region</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container" id="regionChart"></div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="row mb-3">
+            <div class="col-md-4 mb-2">
+                <div class="input-group">
+                    <span class="input-group-text">Filter:</span>
+                    <select class="form-select" id="regionFilter">
+                        <option value="">All Regions</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-8 mb-2">
+                <div class="input-group">
+                    <span class="input-group-text">Search:</span>
+                    <input type="text" id="searchInput" class="form-control" placeholder="Search all columns...">
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="card shadow">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="salesTable">
+                        <thead>
+                            <tr>
+                                <th data-sort="product">Product</th>
+                                <th data-sort="region">Region</th>
+                                <th data-sort="sales" class="text-end">Sales ($)</th>
+                                <th data-sort="date" class="text-end">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- No Results Message -->
+        <div id="noResults" class="alert alert-warning mt-3 d-none">No matching records found</div>
+    </div>
+
+    <script>
+        // Sample sales data (embedded directly as per requirements)
+        const csvData = `product,region,sales,date
+Laptop,North America,15000,2024-01-15
+Smartphone,Europe,12500,2024-01-16
+Tablet,Asia,8900,2024-01-17
+Monitor,North America,4500,2024-01-18
+Keyboard,Europe,2300,2024-01-19
+Mouse,Asia,1800,2024-01-20
+Headphones,North America,6700,2024-01-21
+Webcam,Europe,3400,2024-01-22`;
+
+        // Parse CSV data into array of objects
+        let salesData = [];
+        try {
+            const rows = csvData.split('\n').slice(1); // Skip header
+            salesData = rows.map(row => {
+                const [product, region, sales, date] = row.split(',');
+                return {
+                    product,
+                    region,
+                    sales: parseInt(sales),
+                    date
+                };
+            });
+        } catch (error) {
+            console.error('Error parsing CSV data:', error);
+            alert('Failed to load sales data. Please check the data format.');
+        }
+
+        // Initialize application
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize analytics
+            updateAnalytics();
+            // Initialize table
+            renderTable(salesData);
+            // Initialize region filter
+            populateRegionFilter();
+            // Initialize chart
+            renderRegionChart();
+        });
+
+        // Update analytics metrics
+        function updateAnalytics() {
+            // Calculate total sales
+            const totalSales = salesData.reduce((sum, item) => sum + item.sales, 0);
+            document.getElementById('totalSales').textContent = `$${totalSales.toLocaleString()}`;
+
+            // Calculate average sales per product
+            const avgSales = totalSales / (salesData.length || 1);
+            document.getElementById('avgSales').textContent = `$${avgSales.toLocaleString('en-US', {maximumFractionDigits: 0})}`;
+
+            // Count unique regions
+            const regions = new Set(salesData.map(item => item.region));
+            document.getElementById('regionCount').textContent = regions.size;
+        }
+
+        // Populate region filter dropdown
+        function populateRegionFilter() {
+            const regionFilter = document.getElementById('regionFilter');
+            const regions = [...new Set(salesData.map(item => item.region))].sort();
+            
+            regions.forEach(region => {
+                const option = document.createElement('option');
+                option.value = region;
+                option.textContent = region;
+                regionFilter.appendChild(option);
+            });
+
+            // Add event listener
+            regionFilter.addEventListener('change', applyFilters);
+        }
+
+        // Render sales table
+        function renderTable(data) {
+            const tableBody = document.querySelector('#salesTable tbody');
+            tableBody.innerHTML = '';
+            
+            if (data.length === 0) {
+                document.getElementById('noResults').classList.remove('d-none');
+                return;
+            }
+            
+            document.getElementById('noResults').classList.add('d-none');
+            
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.product}</td>
+                    <td>${item.region}</td>
+                    <td class="text-end">$${item.sales.toLocaleString()}</td>
+                    <td class="text-end">${item.date}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Render region chart
+        function renderRegionChart() {
+            const chartContainer = document.getElementById('regionChart');
+            chartContainer.innerHTML = '';
+            
+            // Calculate sales by region
+            const regionSales = {};
+            salesData.forEach(item => {
+                regionSales[item.region] = (regionSales[item.region] || 0) + item.sales;
+            });
+            
+            // Find max sales for scaling
+            const maxSales = Math.max(...Object.values(regionSales));
+            
+            // Create bars
+            Object.entries(regionSales).forEach(([region, sales]) => {
+                const barHeight = (sales / maxSales) * 100;
+                
+                const barContainer = document.createElement('div');
+                barContainer.classList.add('chart-bar');
+                barContainer.style.height = `${barHeight}%`;
+                
+                const valueLabel = document.createElement('div');
+                valueLabel.classList.add('chart-bar-value');
+                valueLabel.textContent = `$${sales.toLocaleString()}`;
+                
+                const regionLabel = document.createElement('div');
+                regionLabel.classList.add('chart-bar-label');
+                regionLabel.textContent = region;
+                
+                barContainer.appendChild(valueLabel);
+                barContainer.appendChild(regionLabel);
+                chartContainer.appendChild(barContainer);
+            });
+        }
+
+        // Apply all filters
+        function applyFilters() {
+            const regionFilter = document.getElementById('regionFilter').value;
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            let filteredData = salesData;
+            
+            // Apply region filter
+            if (regionFilter) {
+                filteredData = filteredData.filter(item => item.region === regionFilter);
+            }
+            
+            // Apply search filter
+            if (searchTerm) {
+                filteredData = filteredData.filter(item => 
+                    item.product.toLowerCase().includes(searchTerm) ||
+                    item.region.toLowerCase().includes(searchTerm) ||
+                    item.sales.toString().includes(searchTerm) ||
+                    item.date.includes(searchTerm)
+                );
+            }
+            
+            renderTable(filteredData);
+        }
+
+        // Add sorting functionality
+        document.querySelectorAll('#salesTable th[data-sort]').forEach(header => {
+            header.addEventListener('click', () => {
+                const sortKey = header.dataset.sort;
+                const isAsc = header.classList.toggle('asc');
+                
+                // Clear other sort indicators
+                document.querySelectorAll('#salesTable th').forEach(th => {
+                    if (th !== header) th.classList.remove('asc', 'desc');
+                });
+                
+                header.classList.toggle('desc', !isAsc);
+                
+                // Sort data
+                const sortedData = [...salesData].sort((a, b) => {
+                    const valA = a[sortKey];
+                    const valB = b[sortKey];
+                    
+                    if (typeof valA === 'string') {
+                        return isAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                    } else {
+                        return isAsc ? valA - valB : valB - valA;
+                    }
+                });
+                
+                renderTable(sortedData);
+            });
+        });
+
+        // Add search functionality
+        document.getElementById('searchInput').addEventListener('input', applyFilters);
+    </script>
+</body>
+</html>
+```
